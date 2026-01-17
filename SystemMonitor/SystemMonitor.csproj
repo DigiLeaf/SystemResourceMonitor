@@ -16,4 +16,12 @@
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Monitoring\" />
+    <Folder Include="Data\" />
+    <Folder Include="Alerts\" />
+    <Folder Include="Logs\" />
+    <Folder Include="Reporting\" />
+  </ItemGroup>
+
 </Project>

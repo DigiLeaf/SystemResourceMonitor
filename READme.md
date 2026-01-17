@@ -16,15 +16,19 @@ Collected metrics are stored in an Azure SQL Database to enable historical analy
 ## Tech Stack
 - **Lanuage**
 	- C#
-
 - **Runtime**
   - .NET (Console Application)
-
 - **Database**
   - Azure SQL Database
-
 - **Data Access** 
   - Entity Framework Core
-    
 - **Version Control**
   - Git & Github
+
+## Project Structure
+- Alerts/: Handles threshold detection and alerts
+- Config/: Stores application configuration 
+- Data/: Manages database access and persistence
+- Logs/: Records operational history
+- Monitoring/: Collects raw system metrics
+- Reporting/: Generates summaries from collected metrics
