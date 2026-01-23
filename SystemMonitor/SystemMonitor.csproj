@@ -17,7 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Monitoring\" />
     <Folder Include="Data\" />
     <Folder Include="Alerts\" />
     <Folder Include="Logs\" />
