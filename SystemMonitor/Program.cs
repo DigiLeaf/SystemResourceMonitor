@@ -9,6 +9,7 @@ using System.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SystemMonitor.Data;
 using Microsoft.EntityFrameworkCore;
+using SystemMonitor.Data.Models;
 
 class Program
 {
@@ -16,14 +17,16 @@ class Program
     {
           public int MonitoringIntervalMilSeconds { get; set; }
           public int CPUThresholdPercent { get; set; }
-          public string DefaultConnection { get; set; }
+          public ConnectionStringsConfig ConnectionStrings { get; set; }
 
+    }
+
+    public class ConnectionStringsConfig
+    {
+        public string DefaultConnection {  set; get; }
     }
     static void Main(string[] args)
     {
-
-
-
 
         Console.WriteLine("##############################");
         Console.WriteLine("   System Resource Monitor   ");
@@ -36,11 +39,13 @@ class Program
         json = File.ReadAllText(configPath);
         Config configinfo = JsonSerializer.Deserialize<Config>(json);
 
+        Console.WriteLine("DB Connection String:");
+        Console.WriteLine(configinfo.ConnectionStrings.DefaultConnection);
+
         //Database Connection
         ServiceCollection services = new ServiceCollection();
 
-        services.AddDbContext<MonitoringDbContext>(options => options.UseSqlServer(configinfo.DefaultConnection));
-
+        services.AddDbContext<MonitoringDbContext>(options => options.UseSqlServer(configinfo.ConnectionStrings.DefaultConnection));
 
 
         //instantiate objects needed for metric collection
@@ -65,9 +70,6 @@ class Program
             e.Cancel = true;
         };
 
-
-
-
         var serviceProvider = services.BuildServiceProvider();
 
 
@@ -87,9 +89,23 @@ class Program
                 Console.WriteLine($"Free Disk:       {metricSnapShot.DiskFree:0.##} GB");
                 Console.WriteLine($"Used Disk:       {metricSnapShot.DiskUsed:0.##} GB");
                 Console.WriteLine($"Disk Used %:     {metricSnapShot.DiskusedPercent:0.##} %");
-                using (var db = serviceProvider.GetRequiredService<MonitoringDbContext>())
+                //creating new scope each iteration
+                using (var scope = serviceProvider.CreateScope())
                 {
-                    // save your SystemMetrics object here
+                    var db = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
+
+                    //metrics object to be saved to db
+                    SystemMetrics metrics = new SystemMetrics
+                    {
+                        RecordedAt = DateTime.Now,
+                        CpuUsagePercent = metricSnapShot.CpuUsage,
+                        MemoryUsageMB = metricSnapShot.MemUsage,
+                        DiskUsagePercent = metricSnapShot.DiskusedPercent,
+                        CollectionIntervalMs = configinfo.MonitoringIntervalMilSeconds
+                    };
+
+                    db.SystemMetrics.Add(metrics);
+                    db.SaveChanges();
                 }
             }
             catch (Exception ex)
