@@ -1,7 +1,11 @@
-﻿using System;
+﻿using Hardware.Info;
+using NickStrupat;
+using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Numerics;
 using System.Reflection.Emit;
+using System.Security.Principal;
 using System.Text;
 
 namespace SystemMonitor.Monitoring
@@ -11,6 +15,7 @@ namespace SystemMonitor.Monitoring
         public DateTime TimeStamp { get; set; }
         public double CpuUsage { get; set; }
         public double MemUsage { get; set; }
+        public double TotalRAM { get; set; }
         public double DiskIoUsage { get; set; }
         public double DiskTotal { get; set; }
         public double DiskUsed { get; set; }
@@ -25,7 +30,8 @@ namespace SystemMonitor.Monitoring
 
         SystemMonitor.Monitoring.DiskMonitor diskCounter;
         SystemMonitor.Monitoring.DiskCapacitySnapshot diskCapacitySnapshot;
-
+        double totalRamMB;
+        ComputerInfo computerInfo;
 
         public SystemSnapshot() {
             //System Metrics
@@ -33,18 +39,22 @@ namespace SystemMonitor.Monitoring
 
             diskCounter = new SystemMonitor.Monitoring.DiskMonitor();
             cpuMonitor = new SystemMonitor.Monitoring.CpuMonitor();
+
+            computerInfo = new ComputerInfo();
+           
         }
 
         public FullMetricSnapShot GetSystemSnapshot()
         {
             diskCapacitySnapshot = diskCounter.GetDiskCapacitySnapshot();
-
+            totalRamMB = computerInfo.TotalPhysicalMemory / 1024 / 1024.0;
 
             return new FullMetricSnapShot
             {
                 TimeStamp = DateTime.Now,
                 CpuUsage = cpuMonitor.CpuUsage(),
-                MemUsage = memMonitor.RamUsage(),
+                MemUsage = totalRamMB - memMonitor.RamAvaMBytes(), //total ram - available mb gives how much is actually in use.
+                TotalRAM = totalRamMB,
                 DiskIoUsage = diskCounter.DiskIoUsagePercent(),
                 DiskTotal = diskCapacitySnapshot.TotalGB,
                 DiskFree = diskCapacitySnapshot.FreeGB,

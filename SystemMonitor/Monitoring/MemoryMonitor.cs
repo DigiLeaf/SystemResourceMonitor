@@ -14,7 +14,7 @@ namespace SystemMonitor.Monitoring
             ramCounter = new PerformanceCounter("Memory", "Available Mbytes");
         }
 
-        public float RamUsage()
+        public float RamAvaMBytes()
         {
             return ramCounter.NextValue();
         }

@@ -1,16 +1,16 @@
-﻿using Microsoft.Identity.Client.Utils;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Identity.Client.Utils;
+using NickStrupat;
+using System.Configuration;
 using System.Configuration.Internal;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using SystemMonitor.Monitoring;
 using System.Timers;
-using System.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using SystemMonitor.Data;
-using Microsoft.EntityFrameworkCore;
 using SystemMonitor.Data.Models;
-
+using SystemMonitor.Monitoring;
 class Program
 {
     public class Config
@@ -27,7 +27,6 @@ class Program
     }
     static void Main(string[] args)
     {
-
         Console.WriteLine("##############################");
         Console.WriteLine("   System Resource Monitor   ");
         Console.WriteLine("##############################");
@@ -83,7 +82,7 @@ class Program
                 Console.WriteLine($"Date: {System.DateTime.Now}");
                 Console.WriteLine($"Drive: {Environment.SystemDirectory.Substring(0, 1)}:");
                 Console.WriteLine($"CPU Usage:       {metricSnapShot.CpuUsage:0.##} %");
-                Console.WriteLine($"Availabe Ram:    {metricSnapShot.MemUsage:0.##} MB");
+                Console.WriteLine($"Ram Usage:    {metricSnapShot.MemUsage:0.##} / {metricSnapShot.TotalRAM:0.##} MB");
                 Console.WriteLine($"Disk I/O Usage:  {metricSnapShot.DiskIoUsage:0.##} %");
                 Console.WriteLine($"Total Disk:      {metricSnapShot.DiskTotal:0.##} GB");
                 Console.WriteLine($"Free Disk:       {metricSnapShot.DiskFree:0.##} GB");
@@ -93,6 +92,19 @@ class Program
                 using (var scope = serviceProvider.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
+                    //metric validation
+                    if ((metricSnapShot.CpuUsage < 0) || (metricSnapShot.CpuUsage > 100 )){
+                        continue;
+                    }
+                    if ((metricSnapShot.MemUsage < 0) || (metricSnapShot.MemUsage > metricSnapShot.TotalRAM))
+                    {
+                        continue;
+                    }
+                    if ((metricSnapShot.DiskUsed < 0) || (metricSnapShot.DiskUsed > metricSnapShot.DiskTotal ))
+                    {
+                        continue;
+                    }
+                    
 
                     //metrics object to be saved to db
                     SystemMetrics metrics = new SystemMetrics
