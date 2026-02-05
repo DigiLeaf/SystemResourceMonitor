@@ -27,6 +27,12 @@ class Program
     }
     static void Main(string[] args)
     {
+
+        //create logger
+        SystemMonitor.Logging.FileLogger logger = new SystemMonitor.Logging.FileLogger("Logs");
+        logger.Log(SystemMonitor.Logging.LogLevel.Info, "Startup", "Application Started");
+
+
         Console.WriteLine("##############################");
         Console.WriteLine("   System Resource Monitor   ");
         Console.WriteLine("##############################");
@@ -38,13 +44,22 @@ class Program
         json = File.ReadAllText(configPath);
         Config configinfo = JsonSerializer.Deserialize<Config>(json);
 
-        Console.WriteLine("DB Connection String:");
-        Console.WriteLine(configinfo.ConnectionStrings.DefaultConnection);
+        //Console.WriteLine("DB Connection String:");
+        //Console.WriteLine(configinfo.ConnectionStrings.DefaultConnection);
 
         //Database Connection
         ServiceCollection services = new ServiceCollection();
 
-        services.AddDbContext<MonitoringDbContext>(options => options.UseSqlServer(configinfo.ConnectionStrings.DefaultConnection));
+        services.AddDbContext<MonitoringDbContext>(options => 
+            options.UseSqlServer(
+                configinfo.ConnectionStrings.DefaultConnection, 
+                sqlOptions =>{
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 3, 
+                        maxRetryDelay: TimeSpan.FromSeconds(5), 
+                        errorNumbersToAdd: null);
+                }
+            ));
 
 
         //instantiate objects needed for metric collection
@@ -65,6 +80,7 @@ class Program
         Console.CancelKeyPress += (sender, e) =>
         {
             Console.WriteLine("\nShutdown Requested... stopping monitor.");
+            logger.Log(SystemMonitor.Logging.LogLevel.Info, "Shutdown", "Application Shutdown");
             isRunning = false;
             e.Cancel = true;
         };
@@ -76,8 +92,18 @@ class Program
         {
             try
             {
+                
+                try
+                {
+                    metricSnapShot = systemSnapshot.GetSystemSnapshot();
+                }
+                catch (Exception ex) {
+                    logger.Log(SystemMonitor.Logging.LogLevel.Error, "SnapshotCollector", ex.Message);
 
-                metricSnapShot = systemSnapshot.GetSystemSnapshot();
+                    //sleep for a moment if error because otherwise it will bloat logs
+                    Thread.Sleep(configinfo.MonitoringIntervalMilSeconds / 2);
+                    continue;
+                }
                 Console.WriteLine("------------------------------------");
                 Console.WriteLine($"Date: {System.DateTime.Now}");
                 Console.WriteLine($"Drive: {Environment.SystemDirectory.Substring(0, 1)}:");
@@ -94,14 +120,21 @@ class Program
                     var db = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
                     //metric validation
                     if ((metricSnapShot.CpuUsage < 0) || (metricSnapShot.CpuUsage > 100 )){
+                        logger.Log(SystemMonitor.Logging.LogLevel.Warning, "Validation", $"Invalid CPU usage:{metricSnapShot.CpuUsage}");
+                        Thread.Sleep(configinfo.MonitoringIntervalMilSeconds/2);
                         continue;
                     }
                     if ((metricSnapShot.MemUsage < 0) || (metricSnapShot.MemUsage > metricSnapShot.TotalRAM))
                     {
+                        logger.Log(SystemMonitor.Logging.LogLevel.Warning, "Validation", $"Invalid Memory usage:{metricSnapShot.MemUsage}");
+                        Thread.Sleep(configinfo.MonitoringIntervalMilSeconds/2);
+
                         continue;
                     }
                     if ((metricSnapShot.DiskUsed < 0) || (metricSnapShot.DiskUsed > metricSnapShot.DiskTotal ))
                     {
+                        logger.Log(SystemMonitor.Logging.LogLevel.Warning, "Validation", $"Invalid Disk usage:{metricSnapShot.DiskUsed}");
+                        Thread.Sleep(configinfo.MonitoringIntervalMilSeconds/2);
                         continue;
                     }
                     
@@ -115,9 +148,14 @@ class Program
                         DiskUsagePercent = metricSnapShot.DiskusedPercent,
                         CollectionIntervalMs = configinfo.MonitoringIntervalMilSeconds
                     };
-
-                    db.SystemMetrics.Add(metrics);
-                    db.SaveChanges();
+                    try
+                    {
+                        db.SystemMetrics.Add(metrics);
+                        db.SaveChanges();
+                    }
+                    catch (Exception ex) {
+                        logger.Log(SystemMonitor.Logging.LogLevel.Error, "DatabaseSaver", ex.Message);
+                    }
                 }
             }
             catch (Exception ex)

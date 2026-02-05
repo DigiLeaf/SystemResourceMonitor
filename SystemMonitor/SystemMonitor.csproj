@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <Folder Include="Alerts\" />
-    <Folder Include="Logs\" />
     <Folder Include="Reporting\" />
   </ItemGroup>
 
